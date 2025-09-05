@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub网盘代码生成器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>GitHub网盘代码生成器</h1>
+        
+        <!-- 配置表单 -->
+        <div class="config-form">
+            <div class="form-group">
+                <label for="username">GitHub用户名:</label>
+                <input type="text" id="username" placeholder="例如: octocat" required>
+            </div>
+            <div class="form-group">
+                <label for="repository">仓库名:</label>
+                <input type="text" id="repository" placeholder="例如: hello-world" required>
+            </div>
+            <div class="form-group">
+                <label for="netdiskName">网盘名称:</label>
+                <input type="text" id="netdiskName" placeholder="例如: 我的网盘" value="GitHub网盘">
+            </div>
+            <div class="form-group">
+                <label for="announcementUrl">公告URL (可选):</label>
+                <input type="url" id="announcementUrl" placeholder="例如: https://example.com/announcement.txt">
+                <small>支持文本文件(.txt)或HTML文件(.html)</small>
+            </div>
+            <div class="form-group">
+                <label for="perPage">每页显示文件数:</label>
+                <input type="number" id="perPage" placeholder="请输入数字" value="20" min="1" max="1000">
+                <small>建议输入1-1000之间的数字</small>
+            </div>
+            <button id="generateBtn">生成网盘</button>
+        </div>
+
+        <!-- 网盘预览 -->
+        <div id="netdiskPreview" class="netdisk-preview" style="display: none;">
+            <h2 id="netdiskTitle">网盘标题</h2>
+            
+            <!-- 公告区域 -->
+            <div id="announcementSection" class="announcement-section" style="display: none;">
+                <h3>📢 公告</h3>
+                <div id="announcementContent" class="announcement-content">
+                    <!-- 公告内容将在这里显示 -->
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button id="prevPage" disabled>上一页</button>
+                <span id="pageInfo">第 1 页</span>
+                <button id="nextPage">下一页</button>
+            </div>
+            <div class="file-list" id="fileList">
+                <!-- 文件列表将在这里显示 -->
+            </div>
+            <div class="pagination-info">
+                <span id="paginationInfo">显示 0-0 条，共 0 条记录</span>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>正在加载文件列表...</p>
+        </div>
+
+        <!-- 错误信息 -->
+        <div id="error" class="error" style="display: none;">
+            <p id="errorMessage"></p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
