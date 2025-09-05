@@ -66,5 +66,13 @@
     </div>
 
     <script src="script.js"></script>
+    
+    <!-- 错误处理 -->
+    <script>
+        // 全局错误处理
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+        });
+    </script>
 </body>
 </html>
