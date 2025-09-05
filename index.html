@@ -34,43 +34,34 @@
                 <input type="number" id="perPage" placeholder="请输入数字" value="20" min="1" max="1000">
                 <small>建议输入1-1000之间的数字</small>
             </div>
-            <button id="generateBtn">生成网盘</button>
+            <button id="generateBtn">生成网盘代码</button>
         </div>
 
-        <!-- 网盘预览 -->
-        <div id="netdiskPreview" class="netdisk-preview" style="display: none;">
-            <h2 id="netdiskTitle">网盘标题</h2>
-            
-            <!-- 公告区域 -->
-            <div id="announcementSection" class="announcement-section" style="display: none;">
-                <h3>📢 公告</h3>
-                <div id="announcementContent" class="announcement-content">
-                    <!-- 公告内容将在这里显示 -->
-                </div>
-            </div>
-            
-            <div class="controls">
-                <button id="prevPage" disabled>上一页</button>
-                <span id="pageInfo">第 1 页</span>
-                <button id="nextPage">下一页</button>
-            </div>
-            <div class="file-list" id="fileList">
-                <!-- 文件列表将在这里显示 -->
-            </div>
-            <div class="pagination-info">
-                <span id="paginationInfo">显示 0-0 条，共 0 条记录</span>
+        <!-- 生成结果 -->
+        <div id="resultSection" class="code-result" style="display: none;">
+            <h2>生成的网盘代码</h2>
+            <textarea id="generatedCode" readonly></textarea>
+            <div class="button-group">
+                <button id="copyBtn" class="copy-btn">复制代码</button>
+                <button id="downloadBtn">下载HTML文件</button>
+                <button id="previewBtn">预览效果</button>
             </div>
         </div>
 
         <!-- 加载状态 -->
         <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>
-            <p>正在加载文件列表...</p>
+            <p>正在生成网盘代码...</p>
         </div>
 
         <!-- 错误信息 -->
         <div id="error" class="error" style="display: none;">
             <p id="errorMessage"></p>
+        </div>
+
+        <!-- 成功信息 -->
+        <div id="success" class="success" style="display: none;">
+            <p id="successMessage"></p>
         </div>
     </div>
 
