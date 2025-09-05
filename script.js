@@ -8,29 +8,55 @@ class GitHubNetdiskGenerator {
     }
 
     bindEvents() {
-        document.getElementById('generateBtn').addEventListener('click', () => {
-            this.generateNetdiskCode();
-        });
+        // 等待DOM加载完成后再绑定事件
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                this.setupEventListeners();
+            });
+        } else {
+            this.setupEventListeners();
+        }
+    }
 
-        document.getElementById('copyBtn').addEventListener('click', () => {
-            this.copyCode();
-        });
+    setupEventListeners() {
+        const generateBtn = document.getElementById('generateBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const previewBtn = document.getElementById('previewBtn');
+        const perPageInput = document.getElementById('perPage');
 
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-            this.downloadHTML();
-        });
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                this.generateNetdiskCode();
+            });
+        }
 
-        document.getElementById('previewBtn').addEventListener('click', () => {
-            this.previewCode();
-        });
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                this.copyCode();
+            });
+        }
 
-        // 输入框验证
-        document.getElementById('perPage').addEventListener('input', (e) => {
-            let value = e.target.value;
-            if (value !== '' && !/^\d*$/.test(value)) {
-                e.target.value = value.replace(/[^\d]/g, '');
-            }
-        });
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', () => {
+                this.downloadHTML();
+            });
+        }
+
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => {
+                this.previewCode();
+            });
+        }
+
+        if (perPageInput) {
+            perPageInput.addEventListener('input', (e) => {
+                let value = e.target.value;
+                if (value !== '' && !/^\d*$/.test(value)) {
+                    e.target.value = value.replace(/[^\d]/g, '');
+                }
+            });
+        }
     }
 
     async generateNetdiskCode() {
@@ -50,7 +76,6 @@ class GitHubNetdiskGenerator {
         this.hideSuccess();
 
         try {
-            // 获取仓库信息用于生成代码
             const netdiskCode = this.createNetdiskHTML(username, repository, netdiskName, announcementUrl, perPage);
             
             document.getElementById('generatedCode').value = netdiskCode;
@@ -327,19 +352,20 @@ class GitHubNetdiskGenerator {
         let allFiles = [];
         let totalFiles = 0;
 
-        // 初始化
-        document.addEventListener('DOMContentLoaded', async function() {
-            try {
-                await loadFiles();
+        // 初始化函数
+        function init() {
+            loadFiles().then(() => {
                 if (config.announcementUrl) {
-                    await loadAnnouncement();
+                    loadAnnouncement();
                 }
                 displayFiles();
-            } catch (error) {
-                document.getElementById('fileList').innerHTML = 
-                    '<p style="text-align: center; color: #f44336;">加载失败: ' + error.message + '</p>';
-            }
-        });
+            }).catch(error => {
+                const fileList = document.getElementById('fileList');
+                if (fileList) {
+                    fileList.innerHTML = '<p style="text-align: center; color: #f44336;">加载失败: ' + error.message + '</p>';
+                }
+            });
+        }
 
         // 加载文件列表
         async function loadFiles() {
@@ -385,27 +411,37 @@ class GitHubNetdiskGenerator {
                 const contentType = response.headers.get('content-type') || '';
                 let content = await response.text();
 
-                if (contentType.includes('text/html') || config.announcementUrl.toLowerCase().endsWith('.html')) {
-                    document.getElementById('announcementContent').innerHTML = content;
-                } else {
-                    content = escapeHtml(content);
-                    content = content.replace(/\\\\n/g, '<br>');
-                    content = content.replace(/(https?:\\\\/\\\\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-                    document.getElementById('announcementContent').innerHTML = content;
+                const announcementContent = document.getElementById('announcementContent');
+                const announcementSection = document.getElementById('announcementSection');
+                
+                if (announcementContent && announcementSection) {
+                    if (contentType.includes('text/html') || config.announcementUrl.toLowerCase().endsWith('.html')) {
+                        announcementContent.innerHTML = content;
+                    } else {
+                        content = escapeHtml(content);
+                        content = content.replace(/\\n/g, '<br>');
+                        content = content.replace(/(https?:\\/\\/[^\\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+                        announcementContent.innerHTML = content;
+                    }
+                    announcementSection.style.display = 'block';
                 }
-
-                document.getElementById('announcementSection').style.display = 'block';
             } catch (error) {
                 console.warn('公告加载失败:', error.message);
-                document.getElementById('announcementContent').innerHTML = 
-                    '<p style="color: #f44336;">公告加载失败: ' + error.message + '</p>';
-                document.getElementById('announcementSection').style.display = 'block';
+                const announcementContent = document.getElementById('announcementContent');
+                const announcementSection = document.getElementById('announcementSection');
+                
+                if (announcementContent && announcementSection) {
+                    announcementContent.innerHTML = '<p style="color: #f44336;">公告加载失败: ' + error.message + '</p>';
+                    announcementSection.style.display = 'block';
+                }
             }
         }
 
         // 显示文件列表
         function displayFiles() {
             const fileList = document.getElementById('fileList');
+            if (!fileList) return;
+
             const startIndex = (currentPage - 1) * config.perPage;
             const endIndex = Math.min(startIndex + config.perPage, allFiles.length);
             const pageFiles = allFiles.slice(startIndex, endIndex);
@@ -461,11 +497,23 @@ class GitHubNetdiskGenerator {
             const startIndex = (currentPage - 1) * config.perPage + 1;
             const endIndex = Math.min(startIndex + config.perPage - 1, allFiles.length);
 
-            document.getElementById('prevPage').disabled = currentPage <= 1;
-            document.getElementById('nextPage').disabled = currentPage >= totalPages;
-            document.getElementById('pageInfo').textContent = \`第 \${currentPage} 页\`;
-            document.getElementById('paginationInfo').textContent = 
-                \`显示 \${startIndex}-\${endIndex} 条，共 \${allFiles.length} 条记录\`;
+            const prevPageBtn = document.getElementById('prevPage');
+            const nextPageBtn = document.getElementById('nextPage');
+            const pageInfo = document.getElementById('pageInfo');
+            const paginationInfo = document.getElementById('paginationInfo');
+
+            if (prevPageBtn) {
+                prevPageBtn.disabled = currentPage <= 1;
+            }
+            if (nextPageBtn) {
+                nextPageBtn.disabled = currentPage >= totalPages;
+            }
+            if (pageInfo) {
+                pageInfo.textContent = \`第 \${currentPage} 页\`;
+            }
+            if (paginationInfo) {
+                paginationInfo.textContent = \`显示 \${startIndex}-\${endIndex} 条，共 \${allFiles.length} 条记录\`;
+            }
         }
 
         // 获取文件扩展名
@@ -524,6 +572,13 @@ class GitHubNetdiskGenerator {
             };
             return text.replace(/[&<>"']/g, m => map[m]);
         }
+
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     <${''}/script>
 </body>
 </html>`;
@@ -531,61 +586,90 @@ class GitHubNetdiskGenerator {
 
     copyCode() {
         const codeTextarea = document.getElementById('generatedCode');
-        codeTextarea.select();
-        document.execCommand('copy');
-        this.showSuccess('代码已复制到剪贴板！');
+        if (codeTextarea) {
+            codeTextarea.select();
+            document.execCommand('copy');
+            this.showSuccess('代码已复制到剪贴板！');
+        }
     }
 
     downloadHTML() {
-        const code = document.getElementById('generatedCode').value;
-        const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'github-netdisk.html';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        this.showSuccess('HTML文件下载成功！');
+        const codeTextarea = document.getElementById('generatedCode');
+        if (codeTextarea) {
+            const code = codeTextarea.value;
+            const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'github-netdisk.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            this.showSuccess('HTML文件下载成功！');
+        }
     }
 
     previewCode() {
-        const code = document.getElementById('generatedCode').value;
-        const newWindow = window.open('', '_blank');
-        newWindow.document.write(code);
-        newWindow.document.close();
+        const codeTextarea = document.getElementById('generatedCode');
+        if (codeTextarea) {
+            const code = codeTextarea.value;
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(code);
+            newWindow.document.close();
+        }
     }
 
     showLoading(show) {
-        document.getElementById('loading').style.display = show ? 'block' : 'none';
+        const loading = document.getElementById('loading');
+        if (loading) {
+            loading.style.display = show ? 'block' : 'none';
+        }
     }
 
     showError(message) {
-        document.getElementById('errorMessage').textContent = message;
-        document.getElementById('error').style.display = 'block';
+        const errorMessage = document.getElementById('errorMessage');
+        const error = document.getElementById('error');
+        if (errorMessage && error) {
+            errorMessage.textContent = message;
+            error.style.display = 'block';
+        }
     }
 
     showSuccess(message) {
-        document.getElementById('successMessage').textContent = message;
-        document.getElementById('success').style.display = 'block';
-        
-        // 3秒后自动隐藏成功消息
-        setTimeout(() => {
-            this.hideSuccess();
-        }, 3000);
+        const successMessage = document.getElementById('successMessage');
+        const success = document.getElementById('success');
+        if (successMessage && success) {
+            successMessage.textContent = message;
+            success.style.display = 'block';
+            
+            // 3秒后自动隐藏成功消息
+            setTimeout(() => {
+                this.hideSuccess();
+            }, 3000);
+        }
     }
 
     hideError() {
-        document.getElementById('error').style.display = 'none';
+        const error = document.getElementById('error');
+        if (error) {
+            error.style.display = 'none';
+        }
     }
 
     hideSuccess() {
-        document.getElementById('success').style.display = 'none';
+        const success = document.getElementById('success');
+        if (success) {
+            success.style.display = 'none';
+        }
     }
 }
 
 // 初始化应用
-document.addEventListener('DOMContentLoaded', () => {
-    new GitHubNetdiskGenerator();
-});
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        window.githubNetdiskGenerator = new GitHubNetdiskGenerator();
+    });
+} else {
+    window.githubNetdiskGenerator = new GitHubNetdiskGenerator();
+}
