@@ -1,6 +1,13 @@
 class GitHubNetdiskGenerator {
     constructor() {
-        this.init();
+        // 确保DOM加载完成后再初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                this.init();
+            });
+        } else {
+            this.init();
+        }
     }
 
     init() {
@@ -8,63 +15,95 @@ class GitHubNetdiskGenerator {
     }
 
     bindEvents() {
-        // 等待DOM加载完成后再绑定事件
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                this.setupEventListeners();
-            });
-        } else {
-            this.setupEventListeners();
+        // 使用事件委托或延迟绑定来避免DOM未加载完成的问题
+        setTimeout(() => {
+            const generateBtn = document.getElementById('generateBtn');
+            if (generateBtn) {
+                generateBtn.addEventListener('click', () => {
+                    this.generateNetdiskCode();
+                });
+            }
+
+            const copyBtn = document.getElementById('copyBtn');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', () => {
+                    this.copyCode();
+                });
+            }
+
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', () => {
+                    this.downloadHTML();
+                });
+            }
+
+            const previewBtn = document.getElementById('previewBtn');
+            if (previewBtn) {
+                previewBtn.addEventListener('click', () => {
+                    this.previewCode();
+                });
+            }
+
+            const perPageInput = document.getElementById('perPage');
+            if (perPageInput) {
+                perPageInput.addEventListener('input', (e) => {
+                    let value = e.target.value;
+                    if (value !== '' && !/^\d*$/.test(value)) {
+                        e.target.value = value.replace(/[^\d]/g, '');
+                    }
+                });
+            }
+        }, 0);
+    }
+
+    safeGetElement(id) {
+        try {
+            return document.getElementById(id);
+        } catch (error) {
+            console.warn(`Element with id '${id}' not found`);
+            return null;
         }
     }
 
-    setupEventListeners() {
-        const generateBtn = document.getElementById('generateBtn');
-        const copyBtn = document.getElementById('copyBtn');
-        const downloadBtn = document.getElementById('downloadBtn');
-        const previewBtn = document.getElementById('previewBtn');
-        const perPageInput = document.getElementById('perPage');
-
-        if (generateBtn) {
-            generateBtn.addEventListener('click', () => {
-                this.generateNetdiskCode();
-            });
+    safeSetContent(id, content) {
+        const element = this.safeGetElement(id);
+        if (element) {
+            element.textContent = content;
         }
+    }
 
-        if (copyBtn) {
-            copyBtn.addEventListener('click', () => {
-                this.copyCode();
-            });
+    safeSetHTML(id, html) {
+        const element = this.safeGetElement(id);
+        if (element) {
+            element.innerHTML = html;
         }
+    }
 
-        if (downloadBtn) {
-            downloadBtn.addEventListener('click', () => {
-                this.downloadHTML();
-            });
-        }
-
-        if (previewBtn) {
-            previewBtn.addEventListener('click', () => {
-                this.previewCode();
-            });
-        }
-
-        if (perPageInput) {
-            perPageInput.addEventListener('input', (e) => {
-                let value = e.target.value;
-                if (value !== '' && !/^\d*$/.test(value)) {
-                    e.target.value = value.replace(/[^\d]/g, '');
-                }
-            });
+    safeSetStyle(id, property, value) {
+        const element = this.safeGetElement(id);
+        if (element) {
+            element.style[property] = value;
         }
     }
 
     async generateNetdiskCode() {
-        const username = document.getElementById('username').value.trim();
-        const repository = document.getElementById('repository').value.trim();
-        const netdiskName = document.getElementById('netdiskName').value.trim() || 'GitHub网盘';
-        const announcementUrl = document.getElementById('announcementUrl').value.trim();
-        const perPage = parseInt(document.getElementById('perPage').value) || 20;
+        const usernameInput = this.safeGetElement('username');
+        const repositoryInput = this.safeGetElement('repository');
+        const netdiskNameInput = this.safeGetElement('netdiskName');
+        const announcementUrlInput = this.safeGetElement('announcementUrl');
+        const perPageInput = this.safeGetElement('perPage');
+
+        if (!usernameInput || !repositoryInput) {
+            this.showError('页面元素未找到');
+            return;
+        }
+
+        const username = usernameInput.value.trim();
+        const repository = repositoryInput.value.trim();
+        const netdiskName = netdiskNameInput ? netdiskNameInput.value.trim() || 'GitHub网盘' : 'GitHub网盘';
+        const announcementUrl = announcementUrlInput ? announcementUrlInput.value.trim() : '';
+        const perPage = perPageInput ? parseInt(perPageInput.value) || 20 : 20;
 
         if (!username || !repository) {
             this.showError('请填写GitHub用户名和仓库名');
@@ -78,12 +117,20 @@ class GitHubNetdiskGenerator {
         try {
             const netdiskCode = this.createNetdiskHTML(username, repository, netdiskName, announcementUrl, perPage);
             
-            document.getElementById('generatedCode').value = netdiskCode;
-            document.getElementById('resultSection').style.display = 'block';
+            const generatedCode = this.safeGetElement('generatedCode');
+            const resultSection = this.safeGetElement('resultSection');
+            
+            if (generatedCode) {
+                generatedCode.value = netdiskCode;
+            }
+            
+            if (resultSection) {
+                resultSection.style.display = 'block';
+            }
             
             this.showSuccess('网盘代码生成成功！');
         } catch (error) {
-            this.showError(error.message);
+            this.showError(error.message || '生成代码时发生错误');
         } finally {
             this.showLoading(false);
         }
@@ -91,8 +138,21 @@ class GitHubNetdiskGenerator {
 
     createNetdiskHTML(username, repository, netdiskName, announcementUrl, perPage) {
         // 转义特殊字符
-        const escapedNetdiskName = netdiskName.replace(/&/g, '&amp;').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-        const escapedAnnouncementUrl = announcementUrl ? announcementUrl.replace(/&/g, '&amp;').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '&quot;').replace(/'/g, '&#039;') : '';
+        const escapedNetdiskName = netdiskName
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '<')
+            .replace(/>/g, '>')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+            
+        const escapedAnnouncementUrl = announcementUrl 
+            ? announcementUrl
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '<')
+                .replace(/>/g, '>')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;') 
+            : '';
 
         return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -352,19 +412,54 @@ class GitHubNetdiskGenerator {
         let allFiles = [];
         let totalFiles = 0;
 
+        // 安全获取元素的函数
+        function safeGetElement(id) {
+            try {
+                return document.getElementById(id);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        // 安全设置文本内容
+        function safeSetContent(id, content) {
+            const element = safeGetElement(id);
+            if (element) {
+                element.textContent = content;
+            }
+        }
+
+        // 安全设置HTML内容
+        function safeSetHTML(id, html) {
+            const element = safeGetElement(id);
+            if (element) {
+                element.innerHTML = html;
+            }
+        }
+
+        // 安全设置样式
+        function safeSetStyle(id, property, value) {
+            const element = safeGetElement(id);
+            if (element) {
+                element.style[property] = value;
+            }
+        }
+
         // 初始化函数
         function init() {
-            loadFiles().then(() => {
-                if (config.announcementUrl) {
-                    loadAnnouncement();
-                }
-                displayFiles();
-            }).catch(error => {
-                const fileList = document.getElementById('fileList');
-                if (fileList) {
-                    fileList.innerHTML = '<p style="text-align: center; color: #f44336;">加载失败: ' + error.message + '</p>';
-                }
-            });
+            loadFiles()
+                .then(() => {
+                    if (config.announcementUrl) {
+                        loadAnnouncement();
+                    }
+                    displayFiles();
+                })
+                .catch(error => {
+                    const fileList = safeGetElement('fileList');
+                    if (fileList) {
+                        fileList.innerHTML = '<p style="text-align: center; color: #f44336;">加载失败: ' + error.message + '</p>';
+                    }
+                });
         }
 
         // 加载文件列表
@@ -411,35 +506,35 @@ class GitHubNetdiskGenerator {
                 const contentType = response.headers.get('content-type') || '';
                 let content = await response.text();
 
-                const announcementContent = document.getElementById('announcementContent');
-                const announcementSection = document.getElementById('announcementSection');
+                const announcementContent = safeGetElement('announcementContent');
+                const announcementSection = safeGetElement('announcementSection');
                 
                 if (announcementContent && announcementSection) {
                     if (contentType.includes('text/html') || config.announcementUrl.toLowerCase().endsWith('.html')) {
-                        announcementContent.innerHTML = content;
+                        safeSetHTML('announcementContent', content);
                     } else {
                         content = escapeHtml(content);
-                        content = content.replace(/\\n/g, '<br>');
-                        content = content.replace(/(https?:\\/\\/[^\\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-                        announcementContent.innerHTML = content;
+                        content = content.replace(/\\\\n/g, '<br>');
+                        content = content.replace(/(https?:\\\\/\\\\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+                        safeSetHTML('announcementContent', content);
                     }
-                    announcementSection.style.display = 'block';
+                    safeSetStyle('announcementSection', 'display', 'block');
                 }
             } catch (error) {
                 console.warn('公告加载失败:', error.message);
-                const announcementContent = document.getElementById('announcementContent');
-                const announcementSection = document.getElementById('announcementSection');
+                const announcementContent = safeGetElement('announcementContent');
+                const announcementSection = safeGetElement('announcementSection');
                 
                 if (announcementContent && announcementSection) {
-                    announcementContent.innerHTML = '<p style="color: #f44336;">公告加载失败: ' + error.message + '</p>';
-                    announcementSection.style.display = 'block';
+                    safeSetHTML('announcementContent', '<p style="color: #f44336;">公告加载失败: ' + error.message + '</p>');
+                    safeSetStyle('announcementSection', 'display', 'block');
                 }
             }
         }
 
         // 显示文件列表
         function displayFiles() {
-            const fileList = document.getElementById('fileList');
+            const fileList = safeGetElement('fileList');
             if (!fileList) return;
 
             const startIndex = (currentPage - 1) * config.perPage;
@@ -497,10 +592,10 @@ class GitHubNetdiskGenerator {
             const startIndex = (currentPage - 1) * config.perPage + 1;
             const endIndex = Math.min(startIndex + config.perPage - 1, allFiles.length);
 
-            const prevPageBtn = document.getElementById('prevPage');
-            const nextPageBtn = document.getElementById('nextPage');
-            const pageInfo = document.getElementById('pageInfo');
-            const paginationInfo = document.getElementById('paginationInfo');
+            const prevPageBtn = safeGetElement('prevPage');
+            const nextPageBtn = safeGetElement('nextPage');
+            const pageInfo = safeGetElement('pageInfo');
+            const paginationInfo = safeGetElement('paginationInfo');
 
             if (prevPageBtn) {
                 prevPageBtn.disabled = currentPage <= 1;
@@ -585,16 +680,20 @@ class GitHubNetdiskGenerator {
     }
 
     copyCode() {
-        const codeTextarea = document.getElementById('generatedCode');
+        const codeTextarea = this.safeGetElement('generatedCode');
         if (codeTextarea) {
             codeTextarea.select();
-            document.execCommand('copy');
-            this.showSuccess('代码已复制到剪贴板！');
+            try {
+                document.execCommand('copy');
+                this.showSuccess('代码已复制到剪贴板！');
+            } catch (error) {
+                this.showError('复制失败: ' + error.message);
+            }
         }
     }
 
     downloadHTML() {
-        const codeTextarea = document.getElementById('generatedCode');
+        const codeTextarea = this.safeGetElement('generatedCode');
         if (codeTextarea) {
             const code = codeTextarea.value;
             const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
@@ -611,7 +710,7 @@ class GitHubNetdiskGenerator {
     }
 
     previewCode() {
-        const codeTextarea = document.getElementById('generatedCode');
+        const codeTextarea = this.safeGetElement('generatedCode');
         if (codeTextarea) {
             const code = codeTextarea.value;
             const newWindow = window.open('', '_blank');
@@ -621,15 +720,15 @@ class GitHubNetdiskGenerator {
     }
 
     showLoading(show) {
-        const loading = document.getElementById('loading');
+        const loading = this.safeGetElement('loading');
         if (loading) {
             loading.style.display = show ? 'block' : 'none';
         }
     }
 
     showError(message) {
-        const errorMessage = document.getElementById('errorMessage');
-        const error = document.getElementById('error');
+        const errorMessage = this.safeGetElement('errorMessage');
+        const error = this.safeGetElement('error');
         if (errorMessage && error) {
             errorMessage.textContent = message;
             error.style.display = 'block';
@@ -637,8 +736,8 @@ class GitHubNetdiskGenerator {
     }
 
     showSuccess(message) {
-        const successMessage = document.getElementById('successMessage');
-        const success = document.getElementById('success');
+        const successMessage = this.safeGetElement('successMessage');
+        const success = this.safeGetElement('success');
         if (successMessage && success) {
             successMessage.textContent = message;
             success.style.display = 'block';
@@ -651,21 +750,21 @@ class GitHubNetdiskGenerator {
     }
 
     hideError() {
-        const error = document.getElementById('error');
+        const error = this.safeGetElement('error');
         if (error) {
             error.style.display = 'none';
         }
     }
 
     hideSuccess() {
-        const success = document.getElementById('success');
+        const success = this.safeGetElement('success');
         if (success) {
             success.style.display = 'none';
         }
     }
 }
 
-// 初始化应用
+// 确保在DOM加载完成后初始化
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         window.githubNetdiskGenerator = new GitHubNetdiskGenerator();
