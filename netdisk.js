@@ -2,7 +2,7 @@
 (function() {
     // 默认配置
     const defaultConfig = {
-        repo: '',
+        repo: 'coukayouxi/web',
         name: 'GitHub网盘',
         announcement: '',
         perPage: 20
@@ -11,28 +11,40 @@
     // 从URL参数获取配置
     function getConfigFromUrl() {
         try {
-            const urlParams = new URLSearchParams(window.location.search);
+            // 获取完整的URL（包括hash部分）
+            const fullUrl = window.location.href;
+            const urlObj = new URL(fullUrl);
+            const urlParams = new URLSearchParams(urlObj.search);
+            
             const config = {...defaultConfig};
             
             // 解析URL参数
             const repoParam = urlParams.get('repo');
-            if (repoParam) {
+            if (repoParam && repoParam.includes('/')) {
                 config.repo = repoParam;
             }
             
             const nameParam = urlParams.get('name');
             if (nameParam) {
-                config.name = decodeURIComponent(nameParam);
+                try {
+                    config.name = decodeURIComponent(nameParam);
+                } catch (e) {
+                    config.name = nameParam;
+                }
             }
             
             const announcementParam = urlParams.get('announcement');
             if (announcementParam) {
-                config.announcement = decodeURIComponent(announcementParam);
+                try {
+                    config.announcement = decodeURIComponent(announcementParam);
+                } catch (e) {
+                    config.announcement = announcementParam;
+                }
             }
             
             const perPageParam = urlParams.get('perPage');
-            if (perPageParam) {
-                config.perPage = parseInt(perPageParam) || 20;
+            if (perPageParam && !isNaN(parseInt(perPageParam))) {
+                config.perPage = parseInt(perPageParam);
             }
             
             return config;
@@ -44,11 +56,13 @@
 
     // 解析仓库信息
     function parseRepository(repo) {
-        if (!repo) return {username: '', repository: ''};
+        if (!repo || typeof repo !== 'string') {
+            return {username: 'coukayouxi', repository: 'web'};
+        }
         
         const parts = repo.split('/');
-        if (parts.length !== 2) {
-            return {username: '', repository: ''};
+        if (parts.length !== 2 || !parts[0] || !parts[1]) {
+            return {username: 'coukayouxi', repository: 'web'};
         }
         
         return {
@@ -69,286 +83,331 @@
         perPage: urlConfig.perPage
     };
 
-    // 检查必要配置
-    if (!config.username || !config.repository) {
-        document.body.innerHTML = `
-            <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f8f9fa;">
-                <h1 style="color: #dc3545;">配置错误</h1>
-                <p>请在URL中指定仓库信息，例如: ?repo=username/repository</p>
-                <p>当前配置: repo=${config.username}/${config.repository}</p>
-            </div>
-        `;
-        return;
+    // 转义HTML
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return '';
+        const map = {
+            '&': '&amp;',
+            '<': '<',
+            '>': '>',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // 获取文件扩展名
+    function getFileExtension(filename) {
+        if (typeof filename !== 'string') return '';
+        const parts = filename.split('.');
+        return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+    }
+
+    // 获取文件图标
+    function getFileIcon(extension) {
+        const iconMap = {
+            'zip': '📦',
+            'rar': '📦',
+            '7z': '📦',
+            'pdf': '📄',
+            'doc': '📝',
+            'docx': '📝',
+            'xls': '📊',
+            'xlsx': '📊',
+            'ppt': '📽️',
+            'pptx': '📽️',
+            'jpg': '🖼️',
+            'jpeg': '🖼️',
+            'png': '🖼️',
+            'gif': '🖼️',
+            'mp3': '🎵',
+            'wav': '🎵',
+            'mp4': '🎬',
+            'avi': '🎬',
+            'exe': '⚙️',
+            'app': '⚙️'
+        };
+        
+        return iconMap[extension] || '📁';
+    }
+
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (typeof bytes !== 'number' || bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // 全局变量
+    let currentPage = 1;
+    let allFiles = [];
+
+    // 等待DOM加载完成
+    function domReady(callback) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', callback);
+        } else {
+            callback();
+        }
     }
 
     // 替换整个页面内容
-    document.body.innerHTML = `
-        <div class="container">
-            <h1 id="netdiskTitle">${escapeHtml(config.netdiskName)}</h1>
-            
-            <div id="announcementSection" class="announcement-section" style="display: none;">
-                <h3>📢 公告</h3>
-                <div id="announcementContent" class="announcement-content"></div>
-            </div>
+    function replacePageContent() {
+        document.body.innerHTML = `
+            <div class="container">
+                <h1 id="netdiskTitle">${escapeHtml(config.netdiskName)}</h1>
+                
+                <div id="announcementSection" class="announcement-section" style="display: none;">
+                    <h3>📢 公告</h3>
+                    <div id="announcementContent" class="announcement-content"></div>
+                </div>
 
-            <div class="controls">
-                <button id="prevPage" disabled>上一页</button>
-                <span id="pageInfo">第 1 页</span>
-                <button id="nextPage">下一页</button>
-            </div>
+                <div class="controls">
+                    <button id="prevPage" disabled>上一页</button>
+                    <span id="pageInfo">第 1 页</span>
+                    <button id="nextPage">下一页</button>
+                </div>
 
-            <div class="file-list" id="fileList">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>正在加载文件列表...</p>
+                <div class="file-list" id="fileList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>正在加载文件列表...</p>
+                    </div>
+                </div>
+
+                <div class="pagination-info">
+                    <span id="paginationInfo">显示 0-0 条，共 0 条记录</span>
                 </div>
             </div>
+            
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
 
-            <div class="pagination-info">
-                <span id="paginationInfo">显示 0-0 条，共 0 条记录</span>
-            </div>
-        </div>
-        
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    padding: 20px;
+                }
 
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                padding: 20px;
-            }
-
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 10px;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-                overflow: hidden;
-            }
-
-            h1 {
-                text-align: center;
-                padding: 30px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                margin: 0;
-            }
-
-            .announcement-section {
-                background: #e3f2fd;
-                border: 1px solid #2196f3;
-                border-radius: 8px;
-                padding: 20px;
-                margin: 20px 30px;
-            }
-
-            .announcement-section h3 {
-                color: #1976d2;
-                margin-bottom: 10px;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .announcement-content {
-                line-height: 1.6;
-                color: #333;
-            }
-
-            .announcement-content a {
-                color: #1976d2;
-                text-decoration: none;
-            }
-
-            .announcement-content a:hover {
-                text-decoration: underline;
-            }
-
-            .controls {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                gap: 20px;
-                margin: 20px 0;
-                padding: 0 30px;
-            }
-
-            button {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 8px 15px;
-                border: none;
-                border-radius: 5px;
-                font-size: 14px;
-                cursor: pointer;
-                transition: all 0.3s;
-            }
-
-            button:hover:not(:disabled) {
-                transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-            }
-
-            button:disabled {
-                background: #ccc;
-                cursor: not-allowed;
-            }
-
-            #pageInfo {
-                font-weight: bold;
-                color: #333;
-            }
-
-            .file-list {
-                padding: 0 30px 20px;
-            }
-
-            .file-item {
-                display: flex;
-                align-items: center;
-                padding: 15px;
-                border: 1px solid #eee;
-                border-radius: 5px;
-                margin-bottom: 10px;
-                background: white;
-                transition: box-shadow 0.3s;
-            }
-
-            .file-item:hover {
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            }
-
-            .file-icon {
-                width: 40px;
-                height: 40px;
-                margin-right: 15px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: #667eea;
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-
-            .file-info {
-                flex: 1;
-            }
-
-            .file-name {
-                font-weight: bold;
-                color: #333;
-                margin-bottom: 5px;
-            }
-
-            .file-meta {
-                font-size: 12px;
-                color: #666;
-            }
-
-            .file-size {
-                margin-right: 15px;
-            }
-
-            .file-download {
-                padding: 8px 15px;
-                background: #28a745;
-                color: white;
-                text-decoration: none;
-                border-radius: 3px;
-                transition: background 0.3s;
-            }
-
-            .file-download:hover {
-                background: #218838;
-                text-decoration: none;
-            }
-
-            .pagination-info {
-                text-align: center;
-                color: #666;
-                font-size: 14px;
-                padding: 0 30px 20px;
-            }
-
-            .loading {
-                text-align: center;
-                padding: 50px;
-            }
-
-            .spinner {
-                border: 4px solid #f3f3f3;
-                border-top: 4px solid #667eea;
-                border-radius: 50%;
-                width: 40px;
-                height: 40px;
-                animation: spin 1s linear infinite;
-                margin: 0 auto 20px;
-            }
-
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-
-            @media (max-width: 768px) {
                 .container {
-                    margin: 10px;
-                    border-radius: 5px;
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    background: white;
+                    border-radius: 10px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+                    overflow: hidden;
                 }
-                
-                .file-item {
-                    flex-direction: column;
+
+                h1 {
                     text-align: center;
+                    padding: 30px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    margin: 0;
                 }
-                
-                .file-icon {
-                    margin-right: 0;
+
+                .announcement-section {
+                    background: #e3f2fd;
+                    border: 1px solid #2196f3;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 20px 30px;
+                }
+
+                .announcement-section h3 {
+                    color: #1976d2;
                     margin-bottom: 10px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                 }
-                
+
+                .announcement-content {
+                    line-height: 1.6;
+                    color: #333;
+                }
+
+                .announcement-content a {
+                    color: #1976d2;
+                    text-decoration: none;
+                }
+
+                .announcement-content a:hover {
+                    text-decoration: underline;
+                }
+
                 .controls {
-                    flex-direction: column;
-                    gap: 10px;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 20px;
+                    margin: 20px 0;
+                    padding: 0 30px;
                 }
-            }
-        </style>
-    `;
 
-    // 初始化
-    initNetdisk();
+                button {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 8px 15px;
+                    border: none;
+                    border-radius: 5px;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                }
 
-    // 初始化网盘
-    async function initNetdisk() {
-        try {
-            await loadFiles();
-            if (config.announcementUrl) {
-                await loadAnnouncement();
-            }
-            displayFiles();
-        } catch (error) {
-            console.error('初始化失败:', error);
-            const fileList = document.getElementById('fileList');
-            if (fileList) {
-                fileList.innerHTML = 
-                    '<p style="text-align: center; color: #f44336;">加载失败: ' + escapeHtml(error.message) + '</p>';
-            }
-        }
+                button:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+                }
+
+                button:disabled {
+                    background: #ccc;
+                    cursor: not-allowed;
+                }
+
+                #pageInfo {
+                    font-weight: bold;
+                    color: #333;
+                }
+
+                .file-list {
+                    padding: 0 30px 20px;
+                }
+
+                .file-item {
+                    display: flex;
+                    align-items: center;
+                    padding: 15px;
+                    border: 1px solid #eee;
+                    border-radius: 5px;
+                    margin-bottom: 10px;
+                    background: white;
+                    transition: box-shadow 0.3s;
+                }
+
+                .file-item:hover {
+                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+                }
+
+                .file-icon {
+                    width: 40px;
+                    height: 40px;
+                    margin-right: 15px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #667eea;
+                    color: white;
+                    border-radius: 5px;
+                    font-weight: bold;
+                }
+
+                .file-info {
+                    flex: 1;
+                }
+
+                .file-name {
+                    font-weight: bold;
+                    color: #333;
+                    margin-bottom: 5px;
+                }
+
+                .file-meta {
+                    font-size: 12px;
+                    color: #666;
+                }
+
+                .file-size {
+                    margin-right: 15px;
+                }
+
+                .file-download {
+                    padding: 8px 15px;
+                    background: #28a745;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 3px;
+                    transition: background 0.3s;
+                }
+
+                .file-download:hover {
+                    background: #218838;
+                    text-decoration: none;
+                }
+
+                .pagination-info {
+                    text-align: center;
+                    color: #666;
+                    font-size: 14px;
+                    padding: 0 30px 20px;
+                }
+
+                .loading {
+                    text-align: center;
+                    padding: 50px;
+                }
+
+                .spinner {
+                    border: 4px solid #f3f3f3;
+                    border-top: 4px solid #667eea;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 1s linear infinite;
+                    margin: 0 auto 20px;
+                }
+
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+
+                @media (max-width: 768px) {
+                    .container {
+                        margin: 10px;
+                        border-radius: 5px;
+                    }
+                    
+                    .file-item {
+                        flex-direction: column;
+                        text-align: center;
+                    }
+                    
+                    .file-icon {
+                        margin-right: 0;
+                        margin-bottom: 10px;
+                    }
+                    
+                    .controls {
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                }
+            </style>
+        `;
     }
 
     // 加载文件列表
     async function loadFiles() {
+        if (!config.username || !config.repository) {
+            throw new Error('仓库信息不完整');
+        }
+        
         const apiUrl = `https://api.github.com/repos/${config.username}/${config.repository}/releases`;
         const response = await fetch(apiUrl);
         
         if (!response.ok) {
-            throw new Error('获取文件列表失败: ' + response.status);
+            throw new Error(`获取文件列表失败: ${response.status} ${response.statusText}`);
         }
 
         const releases = await response.json();
@@ -359,28 +418,34 @@
                 for (const asset of release.assets) {
                     allFiles.push({
                         id: asset.id,
-                        name: asset.name,
-                        size: asset.size,
-                        downloadUrl: asset.browser_download_url,
-                        createdAt: asset.created_at,
-                        updatedAt: asset.updated_at,
-                        releaseName: release.name || release.tag_name,
-                        releaseTag: release.tag_name
+                        name: asset.name || '',
+                        size: asset.size || 0,
+                        downloadUrl: asset.browser_download_url || '',
+                        createdAt: asset.created_at || '',
+                        updatedAt: asset.updated_at || '',
+                        releaseName: release.name || release.tag_name || '',
+                        releaseTag: release.tag_name || ''
                     });
                 }
             }
         }
 
         // 按更新时间排序（最新的在前）
-        allFiles.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        allFiles.sort((a, b) => {
+            const dateA = new Date(a.updatedAt);
+            const dateB = new Date(b.updatedAt);
+            return isNaN(dateA) || isNaN(dateB) ? 0 : dateB - dateA;
+        });
     }
 
     // 加载公告
     async function loadAnnouncement() {
+        if (!config.announcementUrl) return;
+        
         try {
             const response = await fetch(config.announcementUrl);
             if (!response.ok) {
-                throw new Error('公告加载失败');
+                throw new Error(`公告加载失败: ${response.status}`);
             }
 
             const contentType = response.headers.get('content-type') || '';
@@ -413,6 +478,41 @@
         }
     }
 
+    // 创建文件项
+    function createFileItem(file) {
+        const fileExtension = getFileExtension(file.name);
+        const fileSize = formatFileSize(file.size);
+        const fileIcon = getFileIcon(fileExtension);
+        
+        let createdAt = '';
+        let updatedAt = '';
+        
+        try {
+            createdAt = file.createdAt ? new Date(file.createdAt).toLocaleString('zh-CN') : '';
+            updatedAt = file.updatedAt ? new Date(file.updatedAt).toLocaleString('zh-CN') : '';
+        } catch (e) {
+            createdAt = file.createdAt || '';
+            updatedAt = file.updatedAt || '';
+        }
+
+        return `
+            <div class="file-item">
+                <div class="file-icon">${fileIcon}</div>
+                <div class="file-info">
+                    <div class="file-name">${escapeHtml(file.name)}</div>
+                    <div class="file-meta">
+                        <span class="file-size">${fileSize}</span>
+                        <span class="file-date">更新时间: ${updatedAt}</span>
+                        ${file.releaseName ? `<span class="file-release">版本: ${escapeHtml(file.releaseName)}</span>` : ''}
+                    </div>
+                </div>
+                <a href="${file.downloadUrl}" class="file-download" target="_blank" rel="noopener noreferrer">
+                    下载
+                </a>
+            </div>
+        `;
+    }
+
     // 显示文件列表
     function displayFiles() {
         const fileList = document.getElementById('fileList');
@@ -441,32 +541,6 @@
         if (nextPageBtn) {
             nextPageBtn.onclick = () => goToPage(currentPage + 1);
         }
-    }
-
-    // 创建文件项
-    function createFileItem(file) {
-        const fileExtension = getFileExtension(file.name);
-        const fileSize = formatFileSize(file.size);
-        const fileIcon = getFileIcon(fileExtension);
-        const createdAt = new Date(file.createdAt).toLocaleString('zh-CN');
-        const updatedAt = new Date(file.updatedAt).toLocaleString('zh-CN');
-
-        return `
-            <div class="file-item">
-                <div class="file-icon">${fileIcon}</div>
-                <div class="file-info">
-                    <div class="file-name">${escapeHtml(file.name)}</div>
-                    <div class="file-meta">
-                        <span class="file-size">${fileSize}</span>
-                        <span class="file-date">更新时间: ${updatedAt}</span>
-                        ${file.releaseName ? `<span class="file-release">版本: ${escapeHtml(file.releaseName)}</span>` : ''}
-                    </div>
-                </div>
-                <a href="${file.downloadUrl}" class="file-download" target="_blank" rel="noopener noreferrer">
-                    下载
-                </a>
-            </div>
-        `;
     }
 
     // 跳转到指定页面
@@ -504,65 +578,57 @@
         }
     }
 
-    // 获取文件扩展名
-    function getFileExtension(filename) {
-        const parts = filename.split('.');
-        return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+    // 初始化网盘
+    async function initNetdisk() {
+        try {
+            // 验证必要配置
+            if (!config.username || !config.repository) {
+                document.body.innerHTML = `
+                    <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f8f9fa;">
+                        <h1 style="color: #dc3545;">配置错误</h1>
+                        <p>请在URL中指定仓库信息，例如: ?repo=username/repository</p>
+                        <p>当前配置: repo=${escapeHtml(config.username || '')}/${escapeHtml(config.repository || '')}</p>
+                        <p><small>完整URL示例: your-file.html?repo=coukayouxi/web&name=我的网盘</small></p>
+                    </div>
+                `;
+                return;
+            }
+            
+            replacePageContent();
+            
+            // 等待DOM更新完成
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            await loadFiles();
+            if (config.announcementUrl) {
+                await loadAnnouncement();
+            }
+            displayFiles();
+        } catch (error) {
+            console.error('初始化失败:', error);
+            
+            // 显示错误信息
+            if (document.body) {
+                document.body.innerHTML = `
+                    <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f8f9fa;">
+                        <h1 style="color: #dc3545;">加载失败</h1>
+                        <p style="color: #666;">错误信息: ${escapeHtml(error.message)}</p>
+                        <p style="color: #666; font-size: 14px;">请检查网络连接和仓库配置</p>
+                        <p style="color: #666; font-size: 12px; margin-top: 20px;">
+                            当前配置:<br>
+                            用户名: ${escapeHtml(config.username || '未设置')}<br>
+                            仓库名: ${escapeHtml(config.repository || '未设置')}<br>
+                            网盘名称: ${escapeHtml(config.netdiskName || '未设置')}
+                        </p>
+                    </div>
+                `;
+            }
+        }
     }
 
-    // 获取文件图标
-    function getFileIcon(extension) {
-        const iconMap = {
-            'zip': '📦',
-            'rar': '📦',
-            '7z': '📦',
-            'pdf': '📄',
-            'doc': '📝',
-            'docx': '📝',
-            'xls': '📊',
-            'xlsx': '📊',
-            'ppt': '📽️',
-            'pptx': '📽️',
-            'jpg': '🖼️',
-            'jpeg': '🖼️',
-            'png': '🖼️',
-            'gif': '🖼️',
-            'mp3': '🎵',
-            'wav': '🎵',
-            'mp4': '🎬',
-            'avi': '🎬',
-            'exe': '⚙️',
-            'app': '⚙️'
-        };
-        
-        return iconMap[extension] || '📁';
-    }
+    // 启动网盘
+    domReady(function() {
+        initNetdisk();
+    });
 
-    // 格式化文件大小
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    // 转义HTML
-    function escapeHtml(text) {
-        if (!text) return '';
-        const map = {
-            '&': '&amp;',
-            '<': '<',
-            '>': '>',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.replace(/[&<>"']/g, m => map[m]);
-    }
-
-    // 全局变量
-    let currentPage = 1;
-    let allFiles = [];
 })();
