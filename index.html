@@ -10,15 +10,11 @@
     <div class="container">
         <h1>GitHub网盘代码生成器</h1>
         
-        <!-- 配置表单 -->
         <div class="config-form">
             <div class="form-group">
-                <label for="username">GitHub用户名:</label>
-                <input type="text" id="username" placeholder="例如: octocat" required>
-            </div>
-            <div class="form-group">
-                <label for="repository">仓库名:</label>
-                <input type="text" id="repository" placeholder="例如: hello-world" required>
+                <label for="repository">GitHub仓库 (用户名/仓库名):</label>
+                <input type="text" id="repository" placeholder="例如: octocat/Hello-World" required>
+                <small>格式: 用户名/仓库名</small>
             </div>
             <div class="form-group">
                 <label for="netdiskName">网盘名称:</label>
@@ -34,45 +30,44 @@
                 <input type="number" id="perPage" placeholder="请输入数字" value="20" min="1" max="1000">
                 <small>建议输入1-1000之间的数字</small>
             </div>
-            <button id="generateBtn">生成网盘代码</button>
+            <button id="generateBtn">生成网盘HTML</button>
         </div>
 
-        <!-- 生成结果 -->
         <div id="resultSection" class="code-result" style="display: none;">
-            <h2>生成的网盘代码</h2>
-            <textarea id="generatedCode" readonly></textarea>
+            <h2>生成成功！</h2>
             <div class="button-group">
-                <button id="copyBtn" class="copy-btn">复制代码</button>
-                <button id="downloadBtn">下载HTML文件</button>
-                <button id="previewBtn">预览效果</button>
+                <button id="downloadBtn" class="copy-btn">下载网盘HTML文件</button>
+                <button id="copyUrlBtn">复制配置参数</button>
+            </div>
+            <div class="url-preview">
+                <h3>配置参数预览：</h3>
+                <textarea id="configParams" readonly></textarea>
+            </div>
+            <div class="instructions">
+                <h3>使用说明：</h3>
+                <ol>
+                    <li>点击"下载网盘HTML文件"下载生成的HTML文件</li>
+                    <li>将HTML文件上传到您的网站服务器</li>
+                    <li>访问HTML文件即可使用网盘</li>
+                    <li>可以通过URL参数自定义配置，例如: ?repo=octocat/Hello-World</li>
+                </ol>
             </div>
         </div>
 
-        <!-- 加载状态 -->
         <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>
-            <p>正在生成网盘代码...</p>
+            <p>正在生成网盘...</p>
         </div>
 
-        <!-- 错误信息 -->
         <div id="error" class="error" style="display: none;">
             <p id="errorMessage"></p>
         </div>
 
-        <!-- 成功信息 -->
         <div id="success" class="success" style="display: none;">
             <p id="successMessage"></p>
         </div>
     </div>
 
     <script src="script.js"></script>
-    
-    <!-- 错误处理 -->
-    <script>
-        // 全局错误处理
-        window.addEventListener('error', function(e) {
-            console.error('Global error:', e.error);
-        });
-    </script>
 </body>
 </html>
